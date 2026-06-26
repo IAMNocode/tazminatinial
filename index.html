@@ -1264,6 +1264,83 @@ function ClientList({
   }));
 }
 
+// ─── FILES TAB ────────────────────────────────────────────────────────────────
+function FilesTab({ clientId }) {
+  const [files, setFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const loadFiles = async () => {
+    if (!sb) { setLoading(false); return; }
+    const { data } = await sb.storage.from('documents').list(`clients/${clientId}`, { limit: 100 });
+    setFiles(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { loadFiles(); }, [clientId]);
+
+  const handleUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !sb) return;
+    setUploading(true);
+    const path = `clients/${clientId}/${Date.now()}_${file.name}`;
+    const { error } = await sb.storage.from('documents').upload(path, file);
+    if (!error) await loadFiles();
+    else alert('Yükleme hatası: ' + error.message);
+    setUploading(false);
+  };
+
+  const downloadFile = async (name) => {
+    if (!sb) return;
+    const { data } = await sb.storage.from('documents').download(`clients/${clientId}/${name}`);
+    if (data) {
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url; a.download = name; a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const deleteFile = async (name) => {
+    if (!sb || !window.confirm(`${name} silinsin mi?`)) return;
+    await sb.storage.from('documents').remove([`clients/${clientId}/${name}`]);
+    setFiles(p => p.filter(f => f.name !== name));
+  };
+
+  const ext = n => (n.split('.').pop() || '').toUpperCase();
+  const extColor = n => ({'PDF':'text-red-500','DOC':'text-blue-500','DOCX':'text-blue-500','XLS':'text-green-500','XLSX':'text-green-500','JPG':'text-purple-500','JPEG':'text-purple-500','PNG':'text-purple-500'})[ext(n)] || 'text-gray-400';
+
+  return /*#__PURE__*/React.createElement("div", { className: "flex-1 p-5" },
+    loading ? /*#__PURE__*/React.createElement("div", { className: "text-center text-gray-400 py-10 text-sm" }, "Yükleniyor...") :
+    /*#__PURE__*/React.createElement("div", null,
+      /*#__PURE__*/React.createElement("label", {
+        className: `flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-8 text-center text-gray-400 cursor-pointer transition-colors ${uploading ? 'border-amber-300 bg-amber-50' : 'border-gray-200 hover:border-amber-300'}`
+      },
+        /*#__PURE__*/React.createElement("input", { type: "file", className: "hidden", onChange: handleUpload, disabled: uploading }),
+        /*#__PURE__*/React.createElement(Icon, { name: "upload", size: 24, className: "mx-auto mb-2 opacity-40" }),
+        /*#__PURE__*/React.createElement("p", { className: "text-sm font-medium" }, uploading ? 'Yükleniyor...' : 'Dosya yüklemek için tıklayın'),
+        /*#__PURE__*/React.createElement("p", { className: "text-xs mt-1 text-gray-300" }, "PDF, Word, Excel, görsel...")
+      ),
+      files.length > 0 && /*#__PURE__*/React.createElement("div", { className: "mt-4 space-y-2" },
+        files.filter(f => f.name !== '.emptyFolderPlaceholder').map(f =>
+          /*#__PURE__*/React.createElement("div", { key: f.name, className: "flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-lg hover:border-amber-200 transition-colors" },
+            /*#__PURE__*/React.createElement("span", { className: `text-xs font-bold px-1.5 py-0.5 rounded bg-gray-100 ${extColor(f.name)}` }, ext(f.name)),
+            /*#__PURE__*/React.createElement("span", { className: "flex-1 text-sm text-gray-700 truncate" }, f.name.replace(/^\d+_/, '')),
+            /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-400" }, f.metadata?.size ? (f.metadata.size/1024).toFixed(0) + ' KB' : ''),
+            /*#__PURE__*/React.createElement("button", { onClick: () => downloadFile(f.name), className: "p-1 text-gray-300 hover:text-amber-500 transition-colors" },
+              /*#__PURE__*/React.createElement(Icon, { name: "download", size: 15 })
+            ),
+            /*#__PURE__*/React.createElement("button", { onClick: () => deleteFile(f.name), className: "p-1 text-gray-300 hover:text-red-500 transition-colors" },
+              /*#__PURE__*/React.createElement(Icon, { name: "trash", size: 15 })
+            )
+          )
+        )
+      ),
+      files.filter(f => f.name !== '.emptyFolderPlaceholder').length === 0 && !loading && /*#__PURE__*/React.createElement("p", { className: "text-center text-gray-300 text-xs mt-4" }, "Henüz dosya eklenmedi")
+    )
+  );
+}
+
 // ─── CLIENT DETAIL ────────────────────────────────────────────────────────────
 function ClientDetail({
   clientId,
@@ -1557,32 +1634,7 @@ function ClientDetail({
       name: "trash",
       size: 13
     }))));
-  })), tab === 'files' && /*#__PURE__*/React.createElement("div", {
-    className: "flex-1 p-5"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "border-2 border-dashed border-gray-200 rounded-xl p-10 text-center text-gray-400 hover:border-amber-300 transition-colors cursor-pointer",
-    onClick: () => {
-      const inp = document.createElement('input');
-      inp.type = 'file';
-      inp.multiple = true;
-      inp.onchange = e => alert(`${e.target.files.length} dosya seçildi. Gerçek dosya depolama için Supabase Storage bağlantısı gereklidir.`);
-      inp.click();
-    }
-  }, /*#__PURE__*/React.createElement(Icon, {
-    name: "upload",
-    size: 28,
-    className: "mx-auto mb-2 opacity-40"
-  }), /*#__PURE__*/React.createElement("p", {
-    className: "text-sm font-medium"
-  }, "Dosya yüklemek için tıklayın"), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs mt-1 text-gray-300"
-  }, "PDF, Word, Excel, görsel..."), /*#__PURE__*/React.createElement(Btn, {
-    size: "sm",
-    className: "mt-4",
-    variant: "outline"
-  }, "Dosya Seç")), /*#__PURE__*/React.createElement("div", {
-    className: "mt-3 text-center text-xs text-gray-300"
-  }, "Dosya depolama için Supabase Storage bağlantısı kurulduğunda aktif olacak"))))), showAddNote && /*#__PURE__*/React.createElement(AddNoteModal, {
+  })), tab === 'files' && /*#__PURE__*/React.createElement(FilesTab, {clientId: clientId})))), showAddNote && /*#__PURE__*/React.createElement(AddNoteModal, {
     clientId: clientId,
     currentUser: currentUser,
     onClose: () => setShowAddNote(false),
@@ -1884,6 +1936,8 @@ function SettingsPage({
     setUsers
   } = useApp();
   const [showAddUser, setShowAddUser] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editData, setEditData] = useState({});
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
@@ -1917,24 +1971,56 @@ function SettingsPage({
     className: "font-semibold text-gray-800 text-sm mb-4"
   }, "Aktif Kullanıcı (Demo)"), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2"
-  }, users.map(u => /*#__PURE__*/React.createElement("div", {
-    key: u.id,
-    onClick: () => setCurrentUser(u),
-    className: `flex items-center gap-3 p-3 rounded-lg cursor-pointer border transition-colors ${currentUser.id === u.id ? 'border-amber-300 bg-amber-50' : 'border-transparent hover:bg-gray-50'}`
-  }, /*#__PURE__*/React.createElement(Avatar, {
-    name: u.name,
-    color: u.color,
-    size: 9
-  }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "font-medium text-gray-800 text-sm"
-  }, u.name), /*#__PURE__*/React.createElement("div", {
-    className: "text-gray-400 text-xs"
-  }, u.email, " · ", u.role === 'admin' ? 'Yönetici' : 'Kullanıcı')), currentUser.id === u.id && /*#__PURE__*/React.createElement("div", {
-    className: "ml-auto text-amber-500"
-  }, /*#__PURE__*/React.createElement(Icon, {
-    name: "check",
-    size: 16
-  }))))), showAddUser ? /*#__PURE__*/React.createElement("div", {
+  }, users.map(u => editingId === u.id ?
+    /*#__PURE__*/React.createElement("div", {key: u.id, className: "p-3 border border-amber-200 rounded-lg bg-amber-50"},
+      /*#__PURE__*/React.createElement("div", {className: "grid grid-cols-2 gap-2 mb-2"},
+        /*#__PURE__*/React.createElement(Input, {value: editData.name||'', placeholder: "Ad Soyad", onChange: e => setEditData(p => ({...p, name: e.target.value}))}),
+        /*#__PURE__*/React.createElement(Input, {value: editData.email||'', placeholder: "E-posta", onChange: e => setEditData(p => ({...p, email: e.target.value}))})
+      ),
+      /*#__PURE__*/React.createElement("div", {className: "flex items-center gap-2 mb-2"},
+        /*#__PURE__*/React.createElement(Select, {value: editData.role||'user', onChange: e => setEditData(p => ({...p, role: e.target.value}))},
+          /*#__PURE__*/React.createElement("option", {value: "user"}, "Kullanıcı"),
+          /*#__PURE__*/React.createElement("option", {value: "admin"}, "Yönetici")
+        ),
+        /*#__PURE__*/React.createElement("div", {className: "flex gap-1 ml-2"},
+          COLORS.map(c => /*#__PURE__*/React.createElement("button", {
+            key: c, onClick: () => setEditData(p => ({...p, color: c})),
+            className: `w-6 h-6 rounded-full border-2 transition-transform ${(editData.color||'') === c ? 'border-gray-800 scale-110' : 'border-transparent'}`,
+            style: {background: c}
+          }))
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", {className: "flex gap-2"},
+        /*#__PURE__*/React.createElement(Btn, {size: "sm", onClick: () => {
+          setUsers(p => p.map(x => x.id === u.id ? {...x, ...editData} : x));
+          setEditingId(null);
+        }}, "Kaydet"),
+        /*#__PURE__*/React.createElement(Btn, {size: "sm", variant: "secondary", onClick: () => setEditingId(null)}, "İptal")
+      )
+    ) :
+    /*#__PURE__*/React.createElement("div", {
+      key: u.id,
+      onClick: () => setCurrentUser(u),
+      className: `flex items-center gap-3 p-3 rounded-lg cursor-pointer border transition-colors ${currentUser.id === u.id ? 'border-amber-300 bg-amber-50' : 'border-transparent hover:bg-gray-50'}`
+    },
+      /*#__PURE__*/React.createElement(Avatar, {name: u.name, color: u.color, size: 9}),
+      /*#__PURE__*/React.createElement("div", {className: "flex-1 min-w-0"},
+        /*#__PURE__*/React.createElement("div", {className: "font-medium text-gray-800 text-sm"}, u.name),
+        /*#__PURE__*/React.createElement("div", {className: "text-gray-400 text-xs"}, u.email, " · ", u.role === 'admin' ? 'Yönetici' : 'Kullanıcı')
+      ),
+      /*#__PURE__*/React.createElement("div", {className: "ml-auto flex items-center gap-1"},
+        /*#__PURE__*/React.createElement("button", {
+          onClick: e => { e.stopPropagation(); setEditingId(u.id); setEditData({name: u.name, email: u.email||'', role: u.role||'user', color: u.color}); },
+          className: "p-1 text-gray-300 hover:text-amber-500 rounded transition-colors"
+        }, /*#__PURE__*/React.createElement(Icon, {name: "edit", size: 14})),
+        users.length > 1 && /*#__PURE__*/React.createElement("button", {
+          onClick: e => { e.stopPropagation(); if(window.confirm(`${u.name} silinsin mi?`)) setUsers(p => p.filter(x => x.id !== u.id)); },
+          className: "p-1 text-gray-300 hover:text-red-500 rounded transition-colors"
+        }, /*#__PURE__*/React.createElement(Icon, {name: "trash", size: 14})),
+        currentUser.id === u.id && /*#__PURE__*/React.createElement("div", {className: "text-amber-500"}, /*#__PURE__*/React.createElement(Icon, {name: "check", size: 16}))
+      )
+    )
+  )), showAddUser ? /*#__PURE__*/React.createElement("div", {
     className: "mt-4 pt-4 border-t border-gray-100 space-y-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3"
