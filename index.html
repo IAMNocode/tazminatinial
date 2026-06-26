@@ -57,13 +57,13 @@ const DB = {
     next.forEach(item => {
       const old = prev.find(p => p.id === item.id);
       if (!old || JSON.stringify(old) !== JSON.stringify(item)) {
-        sb.from(table).upsert(item);
+        sb.from(table).upsert(item).then(() => {});
       }
     });
     // delete removed
     prev.forEach(item => {
       if (!next.find(n => n.id === item.id)) {
-        sb.from(table).delete().eq('id', item.id);
+        sb.from(table).delete().eq('id', item.id).then(() => {});
       }
     });
   }
