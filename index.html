@@ -2211,6 +2211,11 @@ function App() {
   const setUsers = updater => setUsersRaw(prev => {
     const next = typeof updater === 'function' ? updater(prev) : updater;
     DB.sync('users', prev, next);
+    const updatedCurrent = next.find(u => u.id === currentUser.id);
+    if (updatedCurrent && JSON.stringify(updatedCurrent) !== JSON.stringify(currentUser)) {
+      setCurrentUserRaw(updatedCurrent);
+      LS.set('crm_current_user', updatedCurrent);
+    }
     return next;
   });
 
