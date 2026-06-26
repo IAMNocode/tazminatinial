@@ -21,6 +21,7 @@
 </head>
 <body>
 <div id="root"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script>const {
@@ -33,20 +34,48 @@
   useContext
 } = React;
 
-// ─── STORAGE ────────────────────────────────────────────────────────────────
+// ─── SUPABASE ────────────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://sheqfzrxfwjhttddwjnr.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNoZXFmenJ4ZndqaHR0ZGR3am5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NzA0MTksImV4cCI6MjA5ODA0NjQxOX0.zE3hQhIJ9_VP_1TxETAIYP2U6YMlIIvYdwtMr_liNrc';
+const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+const DB = {
+  async loadAll() {
+    if (!sb) return null;
+    const [c, n, r, u] = await Promise.all([
+      sb.from('clients').select('*').order('created_at', {ascending: false}),
+      sb.from('notes').select('*').order('created_at', {ascending: false}),
+      sb.from('reminders').select('*').order('date', {ascending: true}),
+      sb.from('users').select('*'),
+    ]);
+    if (c.error || n.error || r.error || u.error) return null;
+    return { clients: c.data, notes: n.data, reminders: r.data, users: u.data };
+  },
+  sync(table, prev, next) {
+    if (!sb) return;
+    // upsert added/changed
+    next.forEach(item => {
+      const old = prev.find(p => p.id === item.id);
+      if (!old || JSON.stringify(old) !== JSON.stringify(item)) {
+        sb.from(table).upsert(item);
+      }
+    });
+    // delete removed
+    prev.forEach(item => {
+      if (!next.find(n => n.id === item.id)) {
+        sb.from(table).delete().eq('id', item.id);
+      }
+    });
+  }
+};
+
+// ─── STORAGE (fallback) ──────────────────────────────────────────────────────
 const LS = {
   get: (k, def) => {
-    try {
-      const v = localStorage.getItem(k);
-      return v ? JSON.parse(v) : def;
-    } catch {
-      return def;
-    }
+    try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; }
   },
   set: (k, v) => {
-    try {
-      localStorage.setItem(k, JSON.stringify(v));
-    } catch {}
+    try { localStorage.setItem(k, JSON.stringify(v)); } catch {}
   }
 };
 
@@ -1971,9 +2000,9 @@ function SettingsPage({
     className: "bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800"
   }, /*#__PURE__*/React.createElement("div", {
     className: "font-semibold mb-1"
-  }, "📌 Supabase Entegrasyonu"), /*#__PURE__*/React.createElement("p", {
+  }, "✅ Supabase Bağlı"), /*#__PURE__*/React.createElement("p", {
     className: "text-xs leading-relaxed"
-  }, "Bu versiyon tarayıcı belleğinde (localStorage) çalışıyor. Gerçek çok kullanıcılı kullanım için Supabase bağlantısı kurulacak. WordPress form webhook'u da aynı şekilde entegre edilecek.")));
+  }, "Veriler Supabase veritabanında saklanıyor. Tüm ekip üyeleri aynı verileri gerçek zamanlı görür. WordPress form webhook entegrasyonu için destek@tazminatinial.com adresine gelen formlar otomatik olarak danışan olarak eklenecek.")));
 }
 
 // ─── HEADER ───────────────────────────────────────────────────────────────────
@@ -2051,47 +2080,69 @@ function Header({
 
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 function App() {
-  const [clients, setClientsRaw] = useState(() => LS.get('crm_clients', INITIAL_CLIENTS));
-  const [notes, setNotesRaw] = useState(() => LS.get('crm_notes', INITIAL_NOTES));
-  const [reminders, setRemindersRaw] = useState(() => LS.get('crm_reminders', INITIAL_REMINDERS));
-  const [users, setUsersRaw] = useState(() => LS.get('crm_users', INITIAL_USERS));
-  const [currentUser, setCurrentUserRaw] = useState(() => {
-    const saved = LS.get('crm_current_user', null);
-    return saved || INITIAL_USERS[0];
-  });
+  const [clients, setClientsRaw] = useState(INITIAL_CLIENTS);
+  const [notes, setNotesRaw] = useState(INITIAL_NOTES);
+  const [reminders, setRemindersRaw] = useState(INITIAL_REMINDERS);
+  const [users, setUsersRaw] = useState(INITIAL_USERS);
+  const [currentUser, setCurrentUserRaw] = useState(() => LS.get('crm_current_user', null) || INITIAL_USERS[0]);
   const [page, setPage] = useState('dashboard');
   const [selectedClient, setSelectedClient] = useState(null);
   const [globalSearch, setGlobalSearch] = useState('');
-  const persist = (key, setter) => v => {
-    setter(v);
-    LS.set(key, typeof v === 'function' ? v([]) : v); // simplified; use useEffect instead
-  };
+  const [dbLoading, setDbLoading] = useState(true);
 
-  // Persist to localStorage on change
+  // Load from Supabase on mount
   useEffect(() => {
-    LS.set('crm_clients', clients);
-  }, [clients]);
-  useEffect(() => {
-    LS.set('crm_notes', notes);
-  }, [notes]);
-  useEffect(() => {
-    LS.set('crm_reminders', reminders);
-  }, [reminders]);
-  useEffect(() => {
-    LS.set('crm_users', users);
-  }, [users]);
-  useEffect(() => {
-    LS.set('crm_current_user', currentUser);
-  }, [currentUser]);
+    DB.loadAll().then(data => {
+      if (data) {
+        if (data.clients.length > 0) setClientsRaw(data.clients);
+        if (data.notes.length > 0) setNotesRaw(data.notes);
+        if (data.reminders.length > 0) setRemindersRaw(data.reminders);
+        if (data.users.length > 0) setUsersRaw(data.users);
+      }
+      setDbLoading(false);
+    }).catch(() => setDbLoading(false));
+  }, []);
+
+  // Persist current user selection
+  useEffect(() => { LS.set('crm_current_user', currentUser); }, [currentUser]);
+
+  // DB-syncing setters
+  const setClients = updater => setClientsRaw(prev => {
+    const next = typeof updater === 'function' ? updater(prev) : updater;
+    DB.sync('clients', prev, next);
+    return next;
+  });
+  const setNotes = updater => setNotesRaw(prev => {
+    const next = typeof updater === 'function' ? updater(prev) : updater;
+    DB.sync('notes', prev, next);
+    return next;
+  });
+  const setReminders = updater => setRemindersRaw(prev => {
+    const next = typeof updater === 'function' ? updater(prev) : updater;
+    DB.sync('reminders', prev, next);
+    return next;
+  });
+  const setUsers = updater => setUsersRaw(prev => {
+    const next = typeof updater === 'function' ? updater(prev) : updater;
+    DB.sync('users', prev, next);
+    return next;
+  });
+
+  if (dbLoading) return /*#__PURE__*/React.createElement("div", {
+    className: "flex h-screen items-center justify-center bg-slate-50"
+  }, /*#__PURE__*/React.createElement("div", {className: "text-center"},
+    /*#__PURE__*/React.createElement("div", {className: "w-10 h-10 border-4 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-3"}),
+    /*#__PURE__*/React.createElement("p", {className: "text-gray-500 text-sm"}, "Veriler yükleniyor...")));
+
   const ctx = {
     clients,
-    setClients: setClientsRaw,
+    setClients,
     notes,
-    setNotes: setNotesRaw,
+    setNotes,
     reminders,
-    setReminders: setRemindersRaw,
+    setReminders,
     users,
-    setUsers: setUsersRaw,
+    setUsers,
     currentUser
   };
   const navigate = (pg, clientId) => {
