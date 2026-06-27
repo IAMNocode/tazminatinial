@@ -1132,6 +1132,10 @@ function ClientList({
   const [dateTo, setDateTo] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  // Sync globalSearch to local search on mount or when globalSearch changes
+  React.useEffect(() => {
+    if (globalSearch) setSearch(globalSearch);
+  }, []);
   React.useEffect(() => {
     if (!navFilter) return;
     if (navFilter.search !== undefined) setSearch(navFilter.search);
@@ -1154,16 +1158,15 @@ function ClientList({
   };
   const filtered = useMemo(() => {
     let r = [...clients];
-    const rawQ = (globalSearch || search).trim();
-    const q = rawQ.toLocaleLowerCase('tr-TR');
-    if (q) r = r.filter(c => (c.name||'').toLocaleLowerCase('tr-TR').includes(q) || (c.phone||'').replace(/\D/g,'').includes(rawQ.replace(/\D/g,'')) || (c.issue_type||'').toLocaleLowerCase('tr-TR').includes(q) || (c.description||'').toLocaleLowerCase('tr-TR').includes(q));
+    const q = search.trim().toLowerCase();
+    if (q) r = r.filter(c => (c.name||'').toLowerCase().includes(q) || (c.phone||'').replace(/\D/g,'').includes(q.replace(/\D/g,'')) || (c.issue_type||'').toLowerCase().includes(q) || (c.description||'').toLowerCase().includes(q));
     if (filterStatus) r = r.filter(c => c.status === filterStatus);
     if (filterUser) r = r.filter(c => c.assigned_to === filterUser);
     if (filterIssue) r = r.filter(c => c.issue_type === filterIssue);
     if (dateFrom) r = r.filter(c => new Date(c.created_at) >= new Date(dateFrom));
     if (dateTo) r = r.filter(c => new Date(c.created_at) <= new Date(dateTo + 'T23:59:59'));
     return r.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  }, [clients, search, globalSearch, filterStatus, filterUser, filterIssue, dateFrom, dateTo]);
+  }, [clients, search, filterStatus, filterUser, filterIssue, dateFrom, dateTo]);
   const activeFilters = [filterStatus, filterUser, filterIssue, dateFrom, dateTo].filter(Boolean).length;
   return /*#__PURE__*/React.createElement("div", {
     className: "p-4 md:p-6 max-w-7xl"
@@ -2234,6 +2237,12 @@ function Header({
     onChange: e => {
       setSearch(e.target.value);
       setShowResults(true);
+    },
+    onKeyDown: e => {
+      if (e.key === 'Enter' && search.trim()) {
+        setPage('clients');
+        setShowResults(false);
+      }
     },
     onFocus: () => setShowResults(true),
     placeholder: "Danışan ara... (ad, telefon)",
