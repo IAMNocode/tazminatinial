@@ -387,6 +387,8 @@ const Icon = ({
     edit: 'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z',
     trash: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16',
     'log-out': 'M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1',
+    'menu': 'M4 6h16M4 12h16M4 18h16',
+    'x': 'M6 18L18 6M6 6l12 12',
     upload: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12',
     download: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4',
     close: 'M6 18L18 6M6 6l12 12',
@@ -802,7 +804,9 @@ function Sidebar({
   page,
   setPage,
   reminders,
-  currentUser
+  currentUser,
+  show,
+  onClose
 }) {
   const pendingReminders = reminders.filter(r => !r.is_done && new Date(r.date) > new Date()).length;
   const overdueReminders = reminders.filter(r => !r.is_done && isOverdue(r.date)).length;
@@ -828,9 +832,15 @@ function Sidebar({
     label: 'Ayarlar',
     icon: 'settings'
   }];
-  return /*#__PURE__*/React.createElement("div", {
-    className: "w-56 bg-slate-900 flex flex-col h-screen flex-shrink-0"
-  }, /*#__PURE__*/React.createElement("div", {
+  const nav = (id) => { setPage(id); if (onClose) onClose(); };
+  return /*#__PURE__*/React.createElement(React.Fragment, null,
+    /*#__PURE__*/React.createElement("div", {
+      className: `fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity ${show ? 'opacity-100' : 'opacity-0 pointer-events-none'}`,
+      onClick: onClose
+    }),
+    /*#__PURE__*/React.createElement("div", {
+      className: `fixed md:relative top-0 left-0 h-full md:h-screen z-50 w-64 md:w-56 bg-slate-900 flex flex-col flex-shrink-0 transition-transform duration-300 ${show ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`
+    }, /*#__PURE__*/React.createElement("div", {
     className: "px-5 py-5 border-b border-slate-800"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2"
@@ -846,7 +856,7 @@ function Sidebar({
     className: "flex-1 px-3 py-4 space-y-1"
   }, items.map(item => /*#__PURE__*/React.createElement("button", {
     key: item.id,
-    onClick: () => setPage(item.id),
+    onClick: () => nav(item.id),
     className: `w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${page === item.id ? 'bg-amber-500 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-3"
@@ -874,7 +884,7 @@ function Sidebar({
     title: "Çıkış Yap",
     onClick: () => { if(window.confirm('Çıkış yapılsın mı?')) { LS.set('crm_session', null); window.location.reload(); } },
     className: "ml-auto p-1.5 text-slate-400 hover:text-red-400 rounded transition-colors"
-  }, /*#__PURE__*/React.createElement(Icon, {name:"log-out", size:14})))));
+  }, /*#__PURE__*/React.createElement(Icon, {name:"log-out", size:14}))))));
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
@@ -929,7 +939,7 @@ function Dashboard({
     onClick: () => setPage('reminders')
   }];
   return /*#__PURE__*/React.createElement("div", {
-    className: "p-6 max-w-7xl"
+    className: "p-4 md:p-6 max-w-7xl"
   }, /*#__PURE__*/React.createElement("div", {
     className: "mb-6"
   }, /*#__PURE__*/React.createElement("h1", {
@@ -942,7 +952,7 @@ function Dashboard({
     month: 'long',
     year: 'numeric'
   }))), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-4 gap-4 mb-6"
+    className: "grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"
   }, stats.map(s => /*#__PURE__*/React.createElement("div", {
     key: s.label,
     className: "bg-white rounded-xl p-4 shadow-sm border border-gray-100 cursor-pointer hover:shadow-md hover:border-amber-200 transition-all",
@@ -957,9 +967,9 @@ function Dashboard({
   }, s.value), /*#__PURE__*/React.createElement("div", {
     className: "text-gray-500 text-xs mt-0.5"
   }, s.label)))), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-3 gap-4"
+    className: "grid grid-cols-1 md:grid-cols-3 gap-4"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "col-span-2 bg-white rounded-xl shadow-sm border border-gray-100"
+    className: "md:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between px-5 py-4 border-b border-gray-100"
   }, /*#__PURE__*/React.createElement("h2", {
@@ -1156,7 +1166,7 @@ function ClientList({
   }, [clients, search, globalSearch, filterStatus, filterUser, filterIssue, dateFrom, dateTo]);
   const activeFilters = [filterStatus, filterUser, filterIssue, dateFrom, dateTo].filter(Boolean).length;
   return /*#__PURE__*/React.createElement("div", {
-    className: "p-6 max-w-7xl"
+    className: "p-4 md:p-6 max-w-7xl"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-5"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", {
@@ -1192,7 +1202,7 @@ function ClientList({
     name: "filter",
     size: 14
   }), "Filtre ", activeFilters > 0 && `(${activeFilters})`)), showFilters && /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-5 gap-3 mt-3 pt-3 border-t border-gray-100"
+    className: "grid grid-cols-2 md:grid-cols-5 gap-3 mt-3 pt-3 border-t border-gray-100"
   }, /*#__PURE__*/React.createElement(Select, {
     value: filterStatus,
     onChange: e => setFilterStatus(e.target.value)
@@ -1229,8 +1239,8 @@ function ClientList({
     placeholder: "Bitiş"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"
-  }, /*#__PURE__*/React.createElement("table", {
-    className: "w-full text-sm"
+  }, /*#__PURE__*/React.createElement("div", {className: "overflow-x-auto"}, /*#__PURE__*/React.createElement("table", {
+    className: "w-full text-sm min-w-[600px]"
   }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
     className: "border-b border-gray-100 bg-gray-50"
   }, /*#__PURE__*/React.createElement("th", {className:"px-3 py-3 w-8"},
@@ -1296,7 +1306,7 @@ function ClientList({
     }, "Atanmamış")), /*#__PURE__*/React.createElement("td", {
       className: "px-4 py-3 text-gray-400 text-xs"
     }, formatDate(c.created_at)));
-  }))), filtered.length === 0 && /*#__PURE__*/React.createElement("div", {
+  })))), filtered.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "py-16 text-center text-gray-300"
   }, /*#__PURE__*/React.createElement(Icon, {
     name: "search",
@@ -1435,7 +1445,7 @@ function ClientDetail({
   const pendingRem = clientReminders.filter(r => !r.is_done).length;
   const overdueRem = clientReminders.filter(r => !r.is_done && isOverdue(r.date)).length;
   return /*#__PURE__*/React.createElement("div", {
-    className: "p-6 max-w-5xl fade-in"
+    className: "p-4 md:p-6 max-w-5xl fade-in"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 mb-5"
   }, /*#__PURE__*/React.createElement(Btn, {
@@ -1450,7 +1460,7 @@ function ClientDetail({
   }, "/"), /*#__PURE__*/React.createElement("span", {
     className: "text-gray-600 text-sm font-medium"
   }, client.name)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-3 gap-4"
+    className: "grid grid-cols-1 md:grid-cols-3 gap-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "space-y-4"
   }, /*#__PURE__*/React.createElement("div", {
@@ -1786,7 +1796,7 @@ function RemindersPage({
     }), u.name))));
   })));
   return /*#__PURE__*/React.createElement("div", {
-    className: "p-6 max-w-3xl"
+    className: "p-4 md:p-6 max-w-3xl"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-5"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", {
@@ -1856,13 +1866,13 @@ function ReportsPage() {
   }));
   const maxCount = Math.max(...byStatus.map(s => s.count), 1);
   return /*#__PURE__*/React.createElement("div", {
-    className: "p-6 max-w-5xl"
+    className: "p-4 md:p-6 max-w-5xl"
   }, /*#__PURE__*/React.createElement("h1", {
     className: "text-xl font-bold text-gray-900 mb-5"
   }, "Raporlar"), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-3 gap-4"
+    className: "grid grid-cols-1 md:grid-cols-3 gap-4"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5"
+    className: "md:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5"
   }, /*#__PURE__*/React.createElement("h2", {
     className: "font-semibold text-gray-800 text-sm mb-4"
   }, "Durum Dağılımı"), /*#__PURE__*/React.createElement("div", {
@@ -1917,7 +1927,7 @@ function ReportsPage() {
   }, "Bugün Gelen"), /*#__PURE__*/React.createElement("span", {
     className: "font-bold text-amber-600"
   }, clients.filter(c => isToday(c.created_at)).length)))), /*#__PURE__*/React.createElement("div", {
-    className: "col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"
+    className: "md:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"
   }, /*#__PURE__*/React.createElement("div", {
     className: "px-5 py-4 border-b border-gray-100"
   }, /*#__PURE__*/React.createElement("h2", {
@@ -2012,7 +2022,7 @@ function SettingsPage({
     setShowAddUser(false);
   };
   return /*#__PURE__*/React.createElement("div", {
-    className: "p-6 max-w-2xl"
+    className: "p-4 md:p-6 max-w-2xl"
   }, /*#__PURE__*/React.createElement("h1", {
     className: "text-xl font-bold text-gray-900 mb-5"
   }, "Ayarlar"), /*#__PURE__*/React.createElement("div", {
@@ -2179,7 +2189,8 @@ function Header({
   setSearch,
   setPage,
   setSelectedClient,
-  clients
+  clients,
+  onToggleSidebar
 }) {
   const [showResults, setShowResults] = useState(false);
   const ref = useRef(null);
@@ -2204,9 +2215,13 @@ function Header({
     'client-detail': 'Danışan Detay'
   };
   return /*#__PURE__*/React.createElement("div", {
-    className: "h-14 bg-white border-b border-gray-100 flex items-center px-6 gap-4 flex-shrink-0"
-  }, /*#__PURE__*/React.createElement("h2", {
-    className: "font-semibold text-gray-700 text-sm w-28"
+    className: "h-14 bg-white border-b border-gray-100 flex items-center px-4 gap-3 flex-shrink-0"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "md:hidden p-1.5 text-gray-500 hover:text-gray-800 rounded-lg hover:bg-gray-100",
+    onClick: onToggleSidebar
+  }, /*#__PURE__*/React.createElement(Icon, {name:"menu", size:20})),
+  /*#__PURE__*/React.createElement("h2", {
+    className: "font-semibold text-gray-700 text-sm w-24 md:w-28 flex-shrink-0"
   }, titles[page] || ''), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 max-w-md relative",
     ref: ref
@@ -2325,6 +2340,7 @@ function App() {
   const [selectedClient, setSelectedClient] = useState(null);
   const [globalSearch, setGlobalSearch] = useState('');
   const [navFilter, setNavFilter] = useState(null);
+  const [showSidebar, setShowSidebar] = useState(false);
   const [dbLoading, setDbLoading] = useState(true);
   const [activityLogs, setActivityLogs] = useState(() => LS.get('crm_logs', []));
   const addLog = React.useCallback((action, clientId, detail) => {
@@ -2474,7 +2490,9 @@ function App() {
     page: page,
     setPage: setPage,
     reminders: reminders,
-    currentUser: currentUser
+    currentUser: currentUser,
+    show: showSidebar,
+    onClose: () => setShowSidebar(false)
   }), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 flex flex-col min-w-0"
   }, /*#__PURE__*/React.createElement(Header, {
@@ -2483,7 +2501,8 @@ function App() {
     setSearch: setGlobalSearch,
     setPage: setPage,
     setSelectedClient: setSelectedClient,
-    clients: clients
+    clients: clients,
+    onToggleSidebar: () => setShowSidebar(s => !s)
   }), /*#__PURE__*/React.createElement("main", {
     className: "flex-1 overflow-y-auto scrollbar-hide"
   }, page === 'dashboard' && /*#__PURE__*/React.createElement(Dashboard, {
