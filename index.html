@@ -887,12 +887,14 @@ function Dashboard({
     notes,
     reminders,
     users,
-    currentUser
+    currentUser,
+    setNavFilter
   } = useApp();
   const newToday = clients.filter(c => isToday(c.created_at)).length;
   const myClients = clients.filter(c => c.assigned_to === currentUser.id).length;
   const activeCount = clients.filter(c => c.status === 'aktif').length;
   const overdueCount = reminders.filter(r => !r.is_done && isOverdue(r.date)).length;
+  const todayStr = new Date().toISOString().slice(0,10);
   const upcomingReminders = reminders.filter(r => !r.is_done && new Date(r.date) > new Date()).sort((a, b) => new Date(a.date) - new Date(b.date)).slice(0, 5);
   const overdueReminders = reminders.filter(r => !r.is_done && isOverdue(r.date)).sort((a, b) => new Date(a.date) - new Date(b.date));
   const recentClients = [...clients].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 6);
@@ -902,25 +904,29 @@ function Dashboard({
     value: newToday,
     color: "text-blue-600",
     bg: "bg-blue-50",
-    icon: "users"
+    icon: "users",
+    onClick: () => { setNavFilter({dateFrom: todayStr, dateTo: todayStr}); setPage('clients'); }
   }, {
     label: "Benim Danışanlarım",
     value: myClients,
     color: "text-purple-600",
     bg: "bg-purple-50",
-    icon: "user"
+    icon: "user",
+    onClick: () => { setNavFilter({filterUser: currentUser.id}); setPage('clients'); }
   }, {
     label: "Aktif Dava",
     value: activeCount,
     color: "text-orange-600",
     bg: "bg-orange-50",
-    icon: "folder"
+    icon: "folder",
+    onClick: () => { setNavFilter({filterStatus: 'aktif'}); setPage('clients'); }
   }, {
     label: "Gecikmiş Hatırlatma",
     value: overdueCount,
     color: "text-red-600",
     bg: "bg-red-50",
-    icon: "bell"
+    icon: "bell",
+    onClick: () => setPage('reminders')
   }];
   return /*#__PURE__*/React.createElement("div", {
     className: "p-6 max-w-7xl"
@@ -939,7 +945,8 @@ function Dashboard({
     className: "grid grid-cols-4 gap-4 mb-6"
   }, stats.map(s => /*#__PURE__*/React.createElement("div", {
     key: s.label,
-    className: "bg-white rounded-xl p-4 shadow-sm border border-gray-100"
+    className: "bg-white rounded-xl p-4 shadow-sm border border-gray-100 cursor-pointer hover:shadow-md hover:border-amber-200 transition-all",
+    onClick: s.onClick
   }, /*#__PURE__*/React.createElement("div", {
     className: `w-9 h-9 rounded-lg ${s.bg} flex items-center justify-center mb-3 ${s.color}`
   }, /*#__PURE__*/React.createElement(Icon, {
@@ -1096,13 +1103,16 @@ function Dashboard({
 // ─── CLIENT LIST ──────────────────────────────────────────────────────────────
 function ClientList({
   setPage,
-  setSelectedClient
+  setSelectedClient,
+  globalSearch
 }) {
   const {
     clients,
     users,
     setClients,
-    addLog
+    addLog,
+    navFilter,
+    setNavFilter
   } = useApp();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -1112,6 +1122,16 @@ function ClientList({
   const [dateTo, setDateTo] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  React.useEffect(() => {
+    if (!navFilter) return;
+    if (navFilter.search !== undefined) setSearch(navFilter.search);
+    if (navFilter.filterStatus) { setFilterStatus(navFilter.filterStatus); setShowFilters(true); }
+    if (navFilter.filterUser) { setFilterUser(navFilter.filterUser); setShowFilters(true); }
+    if (navFilter.dateFrom) { setDateFrom(navFilter.dateFrom); setShowFilters(true); }
+    if (navFilter.dateTo) { setDateTo(navFilter.dateTo); setShowFilters(true); }
+    if (navFilter.filterIssue) { setFilterIssue(navFilter.filterIssue); setShowFilters(true); }
+    setNavFilter(null);
+  }, [navFilter]);
   const [selectedIds, setSelectedIds] = useState([]);
   const toggleSelect = (id, e) => { e.stopPropagation(); setSelectedIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]); };
   const toggleAll = () => setSelectedIds(p => p.length === filtered.length ? [] : filtered.map(c => c.id));
@@ -1124,15 +1144,16 @@ function ClientList({
   };
   const filtered = useMemo(() => {
     let r = [...clients];
-    const q = search.toLowerCase().trim();
-    if (q) r = r.filter(c => (c.name||'').toLowerCase().includes(q) || (c.phone||'').replace(/\D/g,'').includes(q.replace(/\D/g,'')) || (c.issue_type||'').toLowerCase().includes(q) || (c.description||'').toLowerCase().includes(q));
+    const rawQ = (globalSearch || search).trim();
+    const q = rawQ.toLocaleLowerCase('tr-TR');
+    if (q) r = r.filter(c => (c.name||'').toLocaleLowerCase('tr-TR').includes(q) || (c.phone||'').replace(/\D/g,'').includes(rawQ.replace(/\D/g,'')) || (c.issue_type||'').toLocaleLowerCase('tr-TR').includes(q) || (c.description||'').toLocaleLowerCase('tr-TR').includes(q));
     if (filterStatus) r = r.filter(c => c.status === filterStatus);
     if (filterUser) r = r.filter(c => c.assigned_to === filterUser);
     if (filterIssue) r = r.filter(c => c.issue_type === filterIssue);
     if (dateFrom) r = r.filter(c => new Date(c.created_at) >= new Date(dateFrom));
     if (dateTo) r = r.filter(c => new Date(c.created_at) <= new Date(dateTo + 'T23:59:59'));
     return r.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  }, [clients, search, filterStatus, filterUser, filterIssue, dateFrom, dateTo]);
+  }, [clients, search, globalSearch, filterStatus, filterUser, filterIssue, dateFrom, dateTo]);
   const activeFilters = [filterStatus, filterUser, filterIssue, dateFrom, dateTo].filter(Boolean).length;
   return /*#__PURE__*/React.createElement("div", {
     className: "p-6 max-w-7xl"
@@ -2006,6 +2027,16 @@ function SettingsPage({
         /*#__PURE__*/React.createElement(Input, {value: editData.name||'', placeholder: "Ad Soyad", onChange: e => setEditData(p => ({...p, name: e.target.value}))}),
         /*#__PURE__*/React.createElement(Input, {value: editData.email||'', placeholder: "E-posta", onChange: e => setEditData(p => ({...p, email: e.target.value}))})
       ),
+      currentUser.role === 'admin' && /*#__PURE__*/React.createElement("div", {className: "mb-2"},
+        /*#__PURE__*/React.createElement("label", {className: "text-xs text-gray-500 mb-1 block"}, "PIN (4 hane)"),
+        /*#__PURE__*/React.createElement(Input, {
+          value: editData.pin||'',
+          placeholder: "4 haneli PIN",
+          maxLength: 4,
+          inputMode: "numeric",
+          onChange: e => setEditData(p => ({...p, pin: e.target.value.replace(/\D/g,'').slice(0,4)}))
+        })
+      ),
       /*#__PURE__*/React.createElement("div", {className: "flex items-center gap-2 mb-2"},
         /*#__PURE__*/React.createElement(Select, {value: editData.role||'user', onChange: e => setEditData(p => ({...p, role: e.target.value}))},
           /*#__PURE__*/React.createElement("option", {value: "user"}, "Kullanıcı"),
@@ -2039,7 +2070,7 @@ function SettingsPage({
       ),
       /*#__PURE__*/React.createElement("div", {className: "ml-auto flex items-center gap-1"},
         /*#__PURE__*/React.createElement("button", {
-          onClick: e => { e.stopPropagation(); setEditingId(u.id); setEditData({name: u.name, email: u.email||'', role: u.role||'user', color: u.color}); },
+          onClick: e => { e.stopPropagation(); setEditingId(u.id); setEditData({name: u.name, email: u.email||'', role: u.role||'user', color: u.color, pin: u.pin||'1234'}); },
           className: "p-1 text-gray-300 hover:text-amber-500 rounded transition-colors"
         }, /*#__PURE__*/React.createElement(Icon, {name: "edit", size: 14})),
         users.length > 1 && /*#__PURE__*/React.createElement("button", {
@@ -2237,6 +2268,14 @@ function LoginScreen({ users, onLogin }) {
     }
   };
   const user = selected || users[0];
+  React.useEffect(() => {
+    const handler = e => {
+      if (e.key >= '0' && e.key <= '9') handleDigit(e.key);
+      else if (e.key === 'Backspace') setPin(p => p.slice(0,-1));
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [pin, selected]);
   return /*#__PURE__*/React.createElement("div", {className:"flex h-screen bg-slate-900 items-center justify-center"},
     /*#__PURE__*/React.createElement("div", {className:"bg-white rounded-2xl shadow-2xl w-80 p-8 text-center"},
       /*#__PURE__*/React.createElement("div", {className:"w-16 h-16 rounded-2xl bg-amber-500 flex items-center justify-center mx-auto mb-4"},
@@ -2285,6 +2324,7 @@ function App() {
   const [page, setPage] = useState('dashboard');
   const [selectedClient, setSelectedClient] = useState(null);
   const [globalSearch, setGlobalSearch] = useState('');
+  const [navFilter, setNavFilter] = useState(null);
   const [dbLoading, setDbLoading] = useState(true);
   const [activityLogs, setActivityLogs] = useState(() => LS.get('crm_logs', []));
   const addLog = React.useCallback((action, clientId, detail) => {
@@ -2418,7 +2458,9 @@ function App() {
     setUsers,
     currentUser,
     activityLogs,
-    addLog
+    addLog,
+    navFilter,
+    setNavFilter
   };
   const navigate = (pg, clientId) => {
     if (clientId) setSelectedClient(clientId);
@@ -2449,7 +2491,8 @@ function App() {
     setSelectedClient: setSelectedClient
   }), page === 'clients' && /*#__PURE__*/React.createElement(ClientList, {
     setPage: setPage,
-    setSelectedClient: setSelectedClient
+    setSelectedClient: setSelectedClient,
+    globalSearch: globalSearch
   }), page === 'client-detail' && /*#__PURE__*/React.createElement(ClientDetail, {
     clientId: selectedClient,
     setPage: setPage
