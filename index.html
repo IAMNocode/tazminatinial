@@ -2189,6 +2189,41 @@ function App() {
     }).catch(() => setDbLoading(false));
   }, []);
 
+  // Supabase Realtime — anlık güncelleme
+  useEffect(() => {
+    if (!sb) return;
+    const channel = sb.channel('crm-realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'clients' }, ({ new: row }) => {
+        setClientsRaw(prev => prev.find(c => c.id === row.id) ? prev : [row, ...prev]);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'clients' }, ({ new: row }) => {
+        setClientsRaw(prev => prev.map(c => c.id === row.id ? row : c));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'clients' }, ({ old: row }) => {
+        setClientsRaw(prev => prev.filter(c => c.id !== row.id));
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notes' }, ({ new: row }) => {
+        setNotesRaw(prev => prev.find(n => n.id === row.id) ? prev : [row, ...prev]);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notes' }, ({ new: row }) => {
+        setNotesRaw(prev => prev.map(n => n.id === row.id ? row : n));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'notes' }, ({ old: row }) => {
+        setNotesRaw(prev => prev.filter(n => n.id !== row.id));
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reminders' }, ({ new: row }) => {
+        setRemindersRaw(prev => prev.find(r => r.id === row.id) ? prev : [...prev, row]);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'reminders' }, ({ new: row }) => {
+        setRemindersRaw(prev => prev.map(r => r.id === row.id ? row : r));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'reminders' }, ({ old: row }) => {
+        setRemindersRaw(prev => prev.filter(r => r.id !== row.id));
+      })
+      .subscribe();
+    return () => sb.removeChannel(channel);
+  }, []);
+
   // Persist current user selection
   useEffect(() => { LS.set('crm_current_user', currentUser); }, [currentUser]);
 
