@@ -2390,7 +2390,7 @@ function App() {
   });
 
   if (!loggedIn) return /*#__PURE__*/React.createElement(LoginScreen, {
-    users: INITIAL_USERS,
+    users: users,
     onLogin: user => {
       setCurrentUserRaw(user);
       LS.set('crm_session', user);
