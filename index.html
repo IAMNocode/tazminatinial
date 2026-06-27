@@ -2279,7 +2279,7 @@ function App() {
   const [clients, setClientsRaw] = useState(INITIAL_CLIENTS);
   const [notes, setNotesRaw] = useState(INITIAL_NOTES);
   const [reminders, setRemindersRaw] = useState(INITIAL_REMINDERS);
-  const [users, setUsersRaw] = useState(INITIAL_USERS);
+  const [users, setUsersRaw] = useState(() => LS.get('crm_users', null) || INITIAL_USERS);
   const [currentUser, setCurrentUserRaw] = useState(null);
   const [loggedIn, setLoggedIn] = useState(() => !!LS.get('crm_session', null));
   const [page, setPage] = useState('dashboard');
@@ -2310,6 +2310,7 @@ function App() {
         if (data.notes.length > 0) setNotesRaw(data.notes);
         if (data.reminders.length > 0) setRemindersRaw(data.reminders);
         if (data.users.length > 0) {
+          LS.set('crm_users', data.users);
           setUsersRaw(data.users);
           // PIN'leri koru — Supabase'den gelen user'da pin yoksa mevcut pin'i kullan
           const session = LS.get('crm_session', null);
@@ -2379,6 +2380,7 @@ function App() {
   });
   const setUsers = updater => setUsersRaw(prev => {
     const next = typeof updater === 'function' ? updater(prev) : updater;
+    LS.set('crm_users', next);
     DB.sync('users', prev, next);
     // currentUser güncellendiyse onu da güncelle
     const updatedCurrent = next.find(u => u.id === currentUser.id);
