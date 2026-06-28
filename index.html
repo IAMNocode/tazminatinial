@@ -1244,10 +1244,10 @@ function ClientList({
   const [dateTo, setDateTo] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  // Sync globalSearch to local search on mount or when globalSearch changes
+  // Sync globalSearch to local search whenever it changes
   React.useEffect(() => {
-    if (globalSearch) setSearch(globalSearch);
-  }, []);
+    setSearch(globalSearch || '');
+  }, [globalSearch]);
   React.useEffect(() => {
     if (!navFilter) return;
     if (navFilter.search !== undefined) setSearch(navFilter.search);
