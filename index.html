@@ -24,6 +24,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script>const {
   useState,
   useEffect,
@@ -888,6 +889,117 @@ function Sidebar({
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
+// ─── CHART CANVAS ─────────────────────────────────────────────────────────────
+function ChartCanvas({ type, data, options, height }) {
+  const canvasRef = React.useRef(null);
+  const chartRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!window.Chart || !canvasRef.current) return;
+    if (chartRef.current) chartRef.current.destroy();
+    chartRef.current = new window.Chart(canvasRef.current, { type, data, options: options || {} });
+    return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } };
+  }, [JSON.stringify(data), JSON.stringify(options)]);
+  return React.createElement('canvas', { ref: canvasRef, style: { height: (height || 180) + 'px', width: '100%' } });
+}
+
+// ─── DASHBOARD CHARTS ─────────────────────────────────────────────────────────
+function DashboardCharts() {
+  const { clients, users } = useApp();
+
+  const weeklyData = React.useMemo(() => {
+    const weeks = [];
+    const now = new Date();
+    for (let i = 7; i >= 0; i--) {
+      const start = new Date(now);
+      start.setDate(now.getDate() - i * 7);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 7);
+      weeks.push({
+        label: start.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' }),
+        count: clients.filter(c => { const d = new Date(c.created_at); return d >= start && d < end; }).length
+      });
+    }
+    return weeks;
+  }, [clients]);
+
+  const statusChartData = React.useMemo(() => {
+    const statuses = ['yeni', 'aktif', 'beklemede', 'kazanildi', 'kaybedildi'];
+    const labels = ['Yeni', 'Aktif', 'Beklemede', 'Kazanıldı', 'Kaybedildi'];
+    const colors = ['#60a5fa', '#f59e0b', '#a78bfa', '#10b981', '#f87171'];
+    return {
+      labels,
+      datasets: [{ data: statuses.map(s => clients.filter(c => c.status === s).length), backgroundColor: colors, borderWidth: 0 }]
+    };
+  }, [clients]);
+
+  const issueChartData = React.useMemo(() => {
+    const counts = {};
+    clients.forEach(c => { if (c.issue_type) counts[c.issue_type] = (counts[c.issue_type] || 0) + 1; });
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    return {
+      labels: sorted.map(([k]) => k),
+      datasets: [{ data: sorted.map(([, v]) => v), backgroundColor: '#f59e0b', borderRadius: 4 }]
+    };
+  }, [clients]);
+
+  const userLoadData = React.useMemo(() => ({
+    labels: users.map(u => u.name.split(' ')[0]),
+    datasets: [{ data: users.map(u => clients.filter(c => c.assigned_to === u.id).length), backgroundColor: ['#f59e0b', '#60a5fa', '#10b981', '#a78bfa', '#f87171'], borderRadius: 4 }]
+  }), [clients, users]);
+
+  const { won, lost, rate } = React.useMemo(() => {
+    const won = clients.filter(c => c.status === 'kazanildi').length;
+    const lost = clients.filter(c => c.status === 'kaybedildi').length;
+    return { won, lost, rate: (won + lost > 0) ? Math.round(won / (won + lost) * 100) : null };
+  }, [clients]);
+
+  const baseOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } };
+
+  return React.createElement('div', { className: 'mt-4 space-y-4' },
+    React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-4' },
+      React.createElement('div', { className: 'md:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5' },
+        React.createElement('h2', { className: 'font-semibold text-gray-800 text-sm mb-4' }, 'Haftalık Yeni Danışan (Son 8 Hafta)'),
+        React.createElement('div', { style: { height: 180, position: 'relative' } },
+          React.createElement(ChartCanvas, { type: 'bar', height: 180, data: { labels: weeklyData.map(w => w.label), datasets: [{ data: weeklyData.map(w => w.count), backgroundColor: '#fbbf24', borderRadius: 4 }] }, options: { ...baseOpts, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { stepSize: 1 } } } } })
+        )
+      ),
+      React.createElement('div', { className: 'bg-white rounded-xl shadow-sm border border-gray-100 p-5' },
+        React.createElement('h2', { className: 'font-semibold text-gray-800 text-sm mb-3' }, 'Durum Dağılımı'),
+        React.createElement('div', { style: { height: 180, position: 'relative' } },
+          React.createElement(ChartCanvas, { type: 'doughnut', height: 180, data: statusChartData, options: { ...baseOpts, cutout: '60%', plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: { size: 11 }, padding: 8 } } } } })
+        )
+      )
+    ),
+    React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-4' },
+      React.createElement('div', { className: 'md:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5' },
+        React.createElement('h2', { className: 'font-semibold text-gray-800 text-sm mb-4' }, 'Sorun Tipi Dağılımı'),
+        React.createElement('div', { style: { height: 220, position: 'relative' } },
+          React.createElement(ChartCanvas, { type: 'bar', height: 220, data: issueChartData.labels.length ? issueChartData : { labels: ['Veri yok'], datasets: [{ data: [0], backgroundColor: '#e5e7eb' }] }, options: { ...baseOpts, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { display: false } }, y: { grid: { display: false }, ticks: { font: { size: 11 } } } } } })
+        )
+      ),
+      React.createElement('div', { className: 'flex flex-col gap-4' },
+        React.createElement('div', { className: 'bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex-1' },
+          React.createElement('h2', { className: 'font-semibold text-gray-800 text-sm mb-3' }, 'Danışman Yükü'),
+          React.createElement('div', { style: { height: 110, position: 'relative' } },
+            React.createElement(ChartCanvas, { type: 'bar', height: 110, data: userLoadData, options: { ...baseOpts, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { stepSize: 1 } } } } })
+          )
+        ),
+        React.createElement('div', { className: 'bg-white rounded-xl shadow-sm border border-gray-100 p-5 text-center' },
+          React.createElement('h2', { className: 'font-semibold text-gray-800 text-sm mb-2' }, 'Dönüşüm Oranı'),
+          rate !== null
+            ? React.createElement('div', null,
+                React.createElement('div', { className: 'text-4xl font-bold text-green-500' }, '%' + rate),
+                React.createElement('div', { className: 'text-xs text-gray-400 mt-1' }, won + ' kazanıldı · ' + lost + ' kaybedildi')
+              )
+            : React.createElement('div', { className: 'text-gray-300 text-sm py-4' }, 'Henüz veri yok')
+        )
+      )
+    )
+  );
+}
+
+// ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function Dashboard({
   setPage,
   setSelectedClient
@@ -1107,7 +1219,7 @@ function Dashboard({
     }, n.content)), /*#__PURE__*/React.createElement("span", {
       className: "text-gray-300 text-xs flex-shrink-0"
     }, formatRelative(n.created_at)));
-  }))));
+  }))), /*#__PURE__*/React.createElement(DashboardCharts, null));
 }
 
 // ─── CLIENT LIST ──────────────────────────────────────────────────────────────
