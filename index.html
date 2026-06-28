@@ -1271,7 +1271,7 @@ function ClientList({
   const filtered = useMemo(() => {
     let r = [...clients];
     const q = search.trim().toLowerCase();
-    if (q) r = r.filter(c => (c.name||'').toLowerCase().includes(q) || (c.phone||'').replace(/\D/g,'').includes(q.replace(/\D/g,'')) || (c.issue_type||'').toLowerCase().includes(q) || (c.description||'').toLowerCase().includes(q));
+    if (q) { const qd = q.replace(/\D/g,''); r = r.filter(c => (c.name||'').toLowerCase().includes(q) || (qd && (c.phone||'').replace(/\D/g,'').includes(qd)) || (c.issue_type||'').toLowerCase().includes(q) || (c.description||'').toLowerCase().includes(q)); }
     if (filterStatus) r = r.filter(c => c.status === filterStatus);
     if (filterUser) r = r.filter(c => c.assigned_to === filterUser);
     if (filterIssue) r = r.filter(c => c.issue_type === filterIssue);
