@@ -1282,7 +1282,8 @@ function ClientList({
     const q = search.trim().toLowerCase();
     if (q) { const qd = q.replace(/\D/g,''); r = r.filter(c => (c.name||'').toLowerCase().includes(q) || (qd && (c.phone||'').replace(/\D/g,'').includes(qd)) || (c.issue_type||'').toLowerCase().includes(q) || (c.description||'').toLowerCase().includes(q)); }
     if (filterStatus) r = r.filter(c => c.status === filterStatus);
-    if (filterUser) r = r.filter(c => c.assigned_to === filterUser);
+    if (filterUser === '__unassigned__') r = r.filter(c => !c.assigned_to);
+    else if (filterUser) r = r.filter(c => c.assigned_to === filterUser);
     if (filterIssue) r = r.filter(c => c.issue_type === filterIssue);
     if (dateFrom) r = r.filter(c => new Date(c.created_at) >= new Date(dateFrom));
     if (dateTo) r = r.filter(c => new Date(c.created_at) <= new Date(dateTo + 'T23:59:59'));
@@ -1325,7 +1326,11 @@ function ClientList({
     currentUser && /*#__PURE__*/React.createElement("button", {
       onClick: () => setFilterUser(currentUser.id),
       className: `px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filterUser === currentUser.id ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`
-    }, "Benim Danışanlarım")),
+    }, "Benim Danışanlarım"),
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => setFilterUser('__unassigned__'),
+      className: `px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filterUser === '__unassigned__' ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`
+    }, "Atanmamış")),
   /*#__PURE__*/React.createElement("div", {
     className: "flex gap-3"
   }, /*#__PURE__*/React.createElement("div", {
@@ -2671,11 +2676,11 @@ function App() {
   }, page === 'dashboard' && /*#__PURE__*/React.createElement(Dashboard, {
     setPage: setPage,
     setSelectedClient: setSelectedClient
-  }), page === 'clients' && /*#__PURE__*/React.createElement(ClientList, {
+  }), /*#__PURE__*/React.createElement("div", {style:{display: page === 'clients' ? '' : 'none'}}, /*#__PURE__*/React.createElement(ClientList, {
     setPage: setPage,
     setSelectedClient: setSelectedClient,
     globalSearch: globalSearch
-  }), page === 'client-detail' && /*#__PURE__*/React.createElement(ClientDetail, {
+  })), page === 'client-detail' && /*#__PURE__*/React.createElement(ClientDetail, {
     clientId: selectedClient,
     setPage: setPage
   }), page === 'reminders' && /*#__PURE__*/React.createElement(RemindersPage, {
