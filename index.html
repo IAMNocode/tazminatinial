@@ -1234,7 +1234,8 @@ function ClientList({
     setClients,
     addLog,
     navFilter,
-    setNavFilter
+    setNavFilter,
+    currentUser
   } = useApp();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -1244,6 +1245,7 @@ function ClientList({
   const [dateTo, setDateTo] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [showBulkStatus, setShowBulkStatus] = useState(false);
   // Sync globalSearch to local search whenever it changes
   React.useEffect(() => {
     setSearch(globalSearch || '');
@@ -1268,6 +1270,13 @@ function ClientList({
     addLog('SİL', null, `${selectedIds.length} danışan silindi: ${names}`);
     setSelectedIds([]);
   };
+  const changeStatusSelected = status => {
+    const label = STATUS_OPTIONS.find(o => o.value === status)?.label || status;
+    setClients(p => p.map(c => selectedIds.includes(c.id) ? {...c, status} : c));
+    addLog('TOPLU_DURUM', null, `${selectedIds.length} danışan durumu → ${label}`);
+    setSelectedIds([]);
+    setShowBulkStatus(false);
+  };
   const filtered = useMemo(() => {
     let r = [...clients];
     const q = search.trim().toLowerCase();
@@ -1288,15 +1297,36 @@ function ClientList({
     className: "text-xl font-bold text-gray-900"
   }, "Danışanlar"), /*#__PURE__*/React.createElement("p", {
     className: "text-gray-400 text-sm"
-  }, clients.length, " kayıt, ", filtered.length, " sonuç")), /*#__PURE__*/React.createElement("div", {className:"flex gap-2"},
-    selectedIds.length > 0 && /*#__PURE__*/React.createElement("button", {
-      onClick: deleteSelected,
-      className: "flex items-center gap-1.5 px-3 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-colors font-medium"
-    }, /*#__PURE__*/React.createElement(Icon, {name:"trash", size:14}), " Seçilenleri Sil (", selectedIds.length, ")"),
+  }, clients.length, " kayıt, ", filtered.length, " sonuç")), /*#__PURE__*/React.createElement("div", {className:"flex gap-2 flex-wrap"},
+    selectedIds.length > 0 && /*#__PURE__*/React.createElement("div", {className:"flex gap-2 relative"},
+      /*#__PURE__*/React.createElement("button", {
+        onClick: () => setShowBulkStatus(s => !s),
+        className: "flex items-center gap-1.5 px-3 py-2 bg-amber-500 text-white text-sm rounded-lg hover:bg-amber-600 transition-colors font-medium"
+      }, /*#__PURE__*/React.createElement(Icon, {name:"edit", size:14}), " Durum (", selectedIds.length, ")"),
+      showBulkStatus && /*#__PURE__*/React.createElement("div", {
+        className: "absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[170px]"
+      }, STATUS_OPTIONS.map(s => /*#__PURE__*/React.createElement("button", {
+        key: s.value,
+        onClick: () => changeStatusSelected(s.value),
+        className: "w-full text-left px-4 py-2.5 text-sm hover:bg-amber-50 flex items-center gap-2 first:rounded-t-lg last:rounded-b-lg"
+      }, /*#__PURE__*/React.createElement("span", {className:"w-2 h-2 rounded-full flex-shrink-0", style:{background:s.color}}), s.label))),
+      /*#__PURE__*/React.createElement("button", {
+        onClick: deleteSelected,
+        className: "flex items-center gap-1.5 px-3 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-colors font-medium"
+      }, /*#__PURE__*/React.createElement(Icon, {name:"trash", size:14}), " Sil")),
     /*#__PURE__*/React.createElement(Btn, {onClick: () => setShowForm(true)},
       /*#__PURE__*/React.createElement(Icon, {name:"plus", size:15}), " Yeni Danışan"))), /*#__PURE__*/React.createElement("div", {
     className: "bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {className:"flex gap-2 mb-3"},
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => setFilterUser(''),
+      className: `px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filterUser === '' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`
+    }, "Tümü"),
+    currentUser && /*#__PURE__*/React.createElement("button", {
+      onClick: () => setFilterUser(currentUser.id),
+      className: `px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filterUser === currentUser.id ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`
+    }, "Benim Danışanlarım")),
+  /*#__PURE__*/React.createElement("div", {
     className: "flex gap-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex-1 relative"
@@ -1912,7 +1942,10 @@ function RemindersPage({
   })));
   return /*#__PURE__*/React.createElement("div", {
     className: "p-4 md:p-6 max-w-3xl"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {className:"flex items-center gap-2 mb-3"},
+    /*#__PURE__*/React.createElement(Btn, {variant:"ghost",size:"sm",onClick:()=>setPage('dashboard')},
+      /*#__PURE__*/React.createElement(Icon, {name:"arrow_left",size:14}), " Dashboard")),
+  /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-5"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", {
     className: "text-xl font-bold text-gray-900"
@@ -1961,7 +1994,8 @@ function ReportsPage() {
   const {
     clients,
     notes,
-    users
+    users,
+    setPage
   } = useApp();
   const byUser = users.map(u => ({
     user: u,
@@ -1982,7 +2016,10 @@ function ReportsPage() {
   const maxCount = Math.max(...byStatus.map(s => s.count), 1);
   return /*#__PURE__*/React.createElement("div", {
     className: "p-4 md:p-6 max-w-5xl"
-  }, /*#__PURE__*/React.createElement("h1", {
+  }, /*#__PURE__*/React.createElement("div", {className:"flex items-center gap-2 mb-3"},
+    /*#__PURE__*/React.createElement(Btn, {variant:"ghost",size:"sm",onClick:()=>setPage('dashboard')},
+      /*#__PURE__*/React.createElement(Icon, {name:"arrow_left",size:14}), " Dashboard")),
+  /*#__PURE__*/React.createElement("h1", {
     className: "text-xl font-bold text-gray-900 mb-5"
   }, "Raporlar"), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-1 md:grid-cols-3 gap-4"
@@ -2108,7 +2145,8 @@ function SettingsPage({
 }) {
   const {
     users,
-    setUsers
+    setUsers,
+    setPage
   } = useApp();
   const [showAddUser, setShowAddUser] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -2138,7 +2176,10 @@ function SettingsPage({
   };
   return /*#__PURE__*/React.createElement("div", {
     className: "p-4 md:p-6 max-w-2xl"
-  }, /*#__PURE__*/React.createElement("h1", {
+  }, /*#__PURE__*/React.createElement("div", {className:"flex items-center gap-2 mb-3"},
+    /*#__PURE__*/React.createElement(Btn, {variant:"ghost",size:"sm",onClick:()=>setPage('dashboard')},
+      /*#__PURE__*/React.createElement(Icon, {name:"arrow_left",size:14}), " Dashboard")),
+  /*#__PURE__*/React.createElement("h1", {
     className: "text-xl font-bold text-gray-900 mb-5"
   }, "Ayarlar"), /*#__PURE__*/React.createElement("div", {
     className: "bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-4"
@@ -2597,7 +2638,8 @@ function App() {
     activityLogs,
     addLog,
     navFilter,
-    setNavFilter
+    setNavFilter,
+    setPage
   };
   const navigate = (pg, clientId) => {
     if (clientId) setSelectedClient(clientId);
