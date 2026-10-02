@@ -2553,12 +2553,12 @@ function App() {
     if (session) setCurrentUserRaw(session);
   }, []);
 
-  // Load from Supabase on mount
-  useEffect(() => {
-    DB.loadAll().then(({ data, error }) => {
+  const refreshFromSupabase = useCallback(async ({ showLoading = false } = {}) => {
+    if (showLoading) setDbLoading(true);
+    try {
+      const { data, error } = await DB.loadAll();
       if (error) {
         setDbError(error);
-        setDbLoading(false);
         return;
       }
 
@@ -2577,15 +2577,37 @@ function App() {
       const session = LS.get('crm_session', null);
       if (session) {
         const fresh = data.users.find(u => u.id === session.id);
-        if (fresh) setCurrentUserRaw({...fresh, pin: fresh.pin || session.pin || '1234'});
+        if (fresh) setCurrentUserRaw({ ...fresh, pin: fresh.pin || session.pin || '1234' });
       }
-
-      setDbLoading(false);
-    }).catch(err => {
+    } catch (err) {
       setDbError(err?.message || 'Supabase verileri alınamadı.');
-      setDbLoading(false);
-    });
+    } finally {
+      if (showLoading) setDbLoading(false);
+    }
   }, []);
+
+  // Load from Supabase on mount
+  useEffect(() => {
+    refreshFromSupabase({ showLoading: true });
+  }, [refreshFromSupabase]);
+
+  // Fallback refresh: Realtime kaçırılırsa periyodik/odaklanınca tekrar çek
+  useEffect(() => {
+    if (!sb) return;
+    const refresh = () => refreshFromSupabase();
+    const intervalId = window.setInterval(refresh, 30000);
+    const onFocus = () => refresh();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [refreshFromSupabase]);
 
   // Supabase Realtime — anlık güncelleme
   useEffect(() => {
