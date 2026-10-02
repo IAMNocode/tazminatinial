@@ -39,18 +39,37 @@
 const SUPABASE_URL = 'https://sheqfzrxfwjhttddwjnr.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNoZXFmenJ4ZndqaHR0ZGR3am5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NzA0MTksImV4cCI6MjA5ODA0NjQxOX0.zE3hQhIJ9_VP_1TxETAIYP2U6YMlIIvYdwtMr_liNrc';
 const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+const DEMO_MODE = window.location.search.includes('demo=1');
 
 const DB = {
   async loadAll() {
-    if (!sb) return null;
-    const [c, n, r, u] = await Promise.all([
-      sb.from('clients').select('*').order('created_at', {ascending: false}),
-      sb.from('notes').select('*').order('created_at', {ascending: false}),
-      sb.from('reminders').select('*').order('date', {ascending: true}),
-      sb.from('users').select('*'),
-    ]);
-    if (c.error || n.error || r.error || u.error) return null;
-    return { clients: c.data, notes: n.data, reminders: r.data, users: u.data };
+    if (!sb) return { data: null, error: 'Supabase istemcisi yüklenemedi.' };
+    try {
+      const [c, n, r, u] = await Promise.all([
+        sb.from('clients').select('*').order('created_at', {ascending: false}),
+        sb.from('notes').select('*').order('created_at', {ascending: false}),
+        sb.from('reminders').select('*').order('date', {ascending: true}),
+        sb.from('users').select('*'),
+      ]);
+      const errors = [
+        c.error ? `clients: ${c.error.message}` : null,
+        n.error ? `notes: ${n.error.message}` : null,
+        r.error ? `reminders: ${r.error.message}` : null,
+        u.error ? `users: ${u.error.message}` : null
+      ].filter(Boolean);
+      if (errors.length > 0) return { data: null, error: errors.join(' | ') };
+      return {
+        data: {
+          clients: c.data || [],
+          notes: n.data || [],
+          reminders: r.data || [],
+          users: u.data || []
+        },
+        error: null
+      };
+    } catch (err) {
+      return { data: null, error: err?.message || 'Bilinmeyen Supabase hatası.' };
+    }
   },
   sync(table, prev, next) {
     if (!sb) return;
@@ -2428,18 +2447,25 @@ function Header({
 }
 
 // ─── LOGIN SCREEN ─────────────────────────────────────────────────────────────
-function LoginScreen({ users, onLogin }) {
+function LoginScreen({ users, onLogin, dbError }) {
   const [selected, setSelected] = useState(null);
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
+  const hasUsers = users.length > 0;
+  const selectedId = (selected || users[0] || {}).id;
   const handleDigit = d => {
-    if (pin.length >= 4) return;
+    if (!hasUsers || pin.length >= 4) return;
     const next = pin + d;
     setPin(next);
     setError('');
     if (next.length === 4) {
       setTimeout(() => {
-        const user = selected || users[0];
+        const user = hasUsers ? (selected || users[0]) : null;
+        if (!user) {
+          setError('Kullanıcı bulunamadı');
+          setPin('');
+          return;
+        }
         if (next === (user.pin || '1234')) {
           onLogin(user);
         } else {
@@ -2449,7 +2475,6 @@ function LoginScreen({ users, onLogin }) {
       }, 200);
     }
   };
-  const user = selected || users[0];
   React.useEffect(() => {
     const handler = e => {
       if (e.key >= '0' && e.key <= '9') handleDigit(e.key);
@@ -2465,11 +2490,13 @@ function LoginScreen({ users, onLogin }) {
       ),
       /*#__PURE__*/React.createElement("h1", {className:"font-bold text-gray-900 text-lg mb-1"}, "TazminatınıAl CRM"),
       /*#__PURE__*/React.createElement("p", {className:"text-gray-400 text-sm mb-6"}, "Kullanıcı seçin ve PIN girin"),
+      dbError && /*#__PURE__*/React.createElement("p", {className:"text-[11px] text-left bg-red-50 border border-red-200 text-red-700 rounded-lg p-2 mb-3"}, dbError),
+      !hasUsers && /*#__PURE__*/React.createElement("p", {className:"text-[11px] text-left bg-amber-50 border border-amber-200 text-amber-700 rounded-lg p-2 mb-3"}, "Kullanıcı verisi yüklenemedi. Supabase bağlantısını kontrol edin."),
       /*#__PURE__*/React.createElement("div", {className:"flex gap-2 justify-center mb-6"},
         users.map(u => /*#__PURE__*/React.createElement("button", {
           key: u.id,
           onClick: () => { setSelected(u); setPin(''); setError(''); },
-          className: `flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all ${(selected||users[0]).id===u.id ? 'border-amber-400 bg-amber-50' : 'border-gray-100 hover:border-gray-200'}`
+          className: `flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all ${selectedId===u.id ? 'border-amber-400 bg-amber-50' : 'border-gray-100 hover:border-gray-200'}`
         },
           /*#__PURE__*/React.createElement("div", {className:"w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold", style:{backgroundColor: u.color}}, u.name.charAt(0)),
           /*#__PURE__*/React.createElement("span", {className:"text-xs text-gray-600 truncate max-w-[60px]"}, u.name.split(' ')[0])
@@ -2490,17 +2517,17 @@ function LoginScreen({ users, onLogin }) {
           className: `h-12 rounded-xl text-lg font-medium transition-all ${d ? 'bg-gray-50 hover:bg-amber-50 text-gray-800 active:bg-amber-100' : 'invisible'}`
         }, d))
       ),
-      /*#__PURE__*/React.createElement("p", {className:"text-xs text-gray-300"}, "Varsayılan PIN: 1234")
+      hasUsers && /*#__PURE__*/React.createElement("p", {className:"text-xs text-gray-300"}, "Varsayılan PIN: 1234")
     )
   );
 }
 
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 function App() {
-  const [clients, setClientsRaw] = useState(INITIAL_CLIENTS);
-  const [notes, setNotesRaw] = useState(INITIAL_NOTES);
-  const [reminders, setRemindersRaw] = useState(INITIAL_REMINDERS);
-  const [users, setUsersRaw] = useState(() => LS.get('crm_users', null) || INITIAL_USERS);
+  const [clients, setClientsRaw] = useState(() => LS.get('crm_clients', DEMO_MODE ? INITIAL_CLIENTS : []));
+  const [notes, setNotesRaw] = useState(() => LS.get('crm_notes', DEMO_MODE ? INITIAL_NOTES : []));
+  const [reminders, setRemindersRaw] = useState(() => LS.get('crm_reminders', DEMO_MODE ? INITIAL_REMINDERS : []));
+  const [users, setUsersRaw] = useState(() => LS.get('crm_users', DEMO_MODE ? INITIAL_USERS : []));
   const [currentUser, setCurrentUserRaw] = useState(null);
   const [loggedIn, setLoggedIn] = useState(() => !!LS.get('crm_session', null));
   const [page, setPage] = useState('dashboard');
@@ -2509,6 +2536,7 @@ function App() {
   const [navFilter, setNavFilter] = useState(null);
   const [showSidebar, setShowSidebar] = useState(false);
   const [dbLoading, setDbLoading] = useState(true);
+  const [dbError, setDbError] = useState('');
   const [activityLogs, setActivityLogs] = useState(() => LS.get('crm_logs', []));
   const addLog = React.useCallback((action, clientId, detail) => {
     setActivityLogs(prev => {
@@ -2527,24 +2555,36 @@ function App() {
 
   // Load from Supabase on mount
   useEffect(() => {
-    DB.loadAll().then(data => {
-      if (data) {
-        if (data.clients.length > 0) setClientsRaw(data.clients);
-        if (data.notes.length > 0) setNotesRaw(data.notes);
-        if (data.reminders.length > 0) setRemindersRaw(data.reminders);
-        if (data.users.length > 0) {
-          LS.set('crm_users', data.users);
-          setUsersRaw(data.users);
-          // PIN'leri koru — Supabase'den gelen user'da pin yoksa mevcut pin'i kullan
-          const session = LS.get('crm_session', null);
-          if (session) {
-            const fresh = data.users.find(u => u.id === session.id);
-            if (fresh) setCurrentUserRaw({...fresh, pin: fresh.pin || session.pin || '1234'});
-          }
-        }
+    DB.loadAll().then(({ data, error }) => {
+      if (error) {
+        setDbError(error);
+        setDbLoading(false);
+        return;
       }
+
+      setDbError('');
+      setClientsRaw(data.clients);
+      LS.set('crm_clients', data.clients);
+      setNotesRaw(data.notes);
+      LS.set('crm_notes', data.notes);
+      setRemindersRaw(data.reminders);
+      LS.set('crm_reminders', data.reminders);
+
+      LS.set('crm_users', data.users);
+      setUsersRaw(data.users);
+
+      // PIN'leri koru — Supabase'den gelen user'da pin yoksa mevcut pin'i kullan
+      const session = LS.get('crm_session', null);
+      if (session) {
+        const fresh = data.users.find(u => u.id === session.id);
+        if (fresh) setCurrentUserRaw({...fresh, pin: fresh.pin || session.pin || '1234'});
+      }
+
       setDbLoading(false);
-    }).catch(() => setDbLoading(false));
+    }).catch(err => {
+      setDbError(err?.message || 'Supabase verileri alınamadı.');
+      setDbLoading(false);
+    });
   }, []);
 
   // Supabase Realtime — anlık güncelleme
@@ -2588,16 +2628,19 @@ function App() {
   // DB-syncing setters
   const setClients = updater => setClientsRaw(prev => {
     const next = typeof updater === 'function' ? updater(prev) : updater;
+    LS.set('crm_clients', next);
     DB.sync('clients', prev, next);
     return next;
   });
   const setNotes = updater => setNotesRaw(prev => {
     const next = typeof updater === 'function' ? updater(prev) : updater;
+    LS.set('crm_notes', next);
     DB.sync('notes', prev, next);
     return next;
   });
   const setReminders = updater => setRemindersRaw(prev => {
     const next = typeof updater === 'function' ? updater(prev) : updater;
+    LS.set('crm_reminders', next);
     DB.sync('reminders', prev, next);
     return next;
   });
@@ -2606,7 +2649,7 @@ function App() {
     LS.set('crm_users', next);
     DB.sync('users', prev, next);
     // currentUser güncellendiyse onu da güncelle
-    const updatedCurrent = next.find(u => u.id === currentUser.id);
+    const updatedCurrent = currentUser ? next.find(u => u.id === currentUser.id) : null;
     if (updatedCurrent && JSON.stringify(updatedCurrent) !== JSON.stringify(currentUser)) {
       setCurrentUserRaw(updatedCurrent);
       LS.set('crm_current_user', updatedCurrent);
@@ -2614,8 +2657,15 @@ function App() {
     return next;
   });
 
+  if (dbLoading) return /*#__PURE__*/React.createElement("div", {
+    className: "flex h-screen items-center justify-center bg-slate-50"
+  }, /*#__PURE__*/React.createElement("div", {className: "text-center"},
+    /*#__PURE__*/React.createElement("div", {className: "w-10 h-10 border-4 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-3"}),
+    /*#__PURE__*/React.createElement("p", {className: "text-gray-500 text-sm"}, "Veriler yükleniyor...")));
+
   if (!loggedIn) return /*#__PURE__*/React.createElement(LoginScreen, {
     users: users,
+    dbError: dbError,
     onLogin: user => {
       setCurrentUserRaw(user);
       LS.set('crm_session', user);
@@ -2623,12 +2673,6 @@ function App() {
       addLog('GİRİŞ', null, `${user.name} sisteme giriş yaptı`);
     }
   });
-
-  if (dbLoading) return /*#__PURE__*/React.createElement("div", {
-    className: "flex h-screen items-center justify-center bg-slate-50"
-  }, /*#__PURE__*/React.createElement("div", {className: "text-center"},
-    /*#__PURE__*/React.createElement("div", {className: "w-10 h-10 border-4 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-3"}),
-    /*#__PURE__*/React.createElement("p", {className: "text-gray-500 text-sm"}, "Veriler yükleniyor...")));
 
   const ctx = {
     clients,
@@ -2663,7 +2707,9 @@ function App() {
     onClose: () => setShowSidebar(false)
   }), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 flex flex-col min-w-0"
-  }, /*#__PURE__*/React.createElement(Header, {
+  }, dbError && /*#__PURE__*/React.createElement("div", {
+    className: "mx-4 mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"
+  }, "Supabase bağlantı hatası: ", dbError), /*#__PURE__*/React.createElement(Header, {
     page: page,
     search: globalSearch,
     setSearch: setGlobalSearch,
